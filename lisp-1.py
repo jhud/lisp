@@ -2,16 +2,22 @@
 # "Recursive Functions of Symbolic Expressions and Their Computation by Machine, Part I"
 # https://www-formal.stanford.edu/jmc/recursive.pdf
 #
+# This is a fascinating paper; many "new innovations" from the next 70 years of computer science are already laid out 
+# here, such as functional programming and garbage collection. It blew my mind the first time I realised that the 
+# short LISP m-expression on page 17 was the entire LISP interpreter itself.
+#
 # This LISP variant is not designed to be particularly useful, correct, elegant, or readable; 
 # it is a minimal implementation of S-expression LISP from the original paper, and should be read
 # in conjunction with that.
 # 
-# Why write this? There is quite a jump from the original paper to all later practical LISP implementations.
+# Why write this? In my opinion, there is quite a jump from the original paper to all later practical LISP implementations.
 # I couldn't find any minimal code examples of theoretical LISP from the original paper, so I wrote it in order
 # to better appreciate how theoretical LISP became a practical programming language.
 #
-# I made this without reference to any future work - it uses ordered pairs (2-tuples), without the shorthand
-# comma format for representing lists. Not all functions are implemented - just the most basic ones from the paper.
+# I made this without reference to any future work. It uses ordered pairs (2-tuples), without the shorthand
+# comma format for representing arbitrarily long lists. This notation quickly becomes impractical when trying to
+# write actual programs. For this reason, not all functions are implemented - just the most basic ones from the paper, in order to demonstrate the basic
+# concepts.
 #
 # Some assorted tips for reading the paper from a Python perspective:
 # - S-expressions are simply nested ordered lists, with "atoms" (value instances) as leaves. This format later became the preferred standard for coding LISP.
@@ -50,7 +56,7 @@ def split_on_separator(input: str, separator="."):
 	raise Exception("mismatched parentheses")
 
 
-def parse(input: str):
+def eval(input: str):
 	""" Evaluate an S-expression.
 	Recurses into parentheses.
 	"""
@@ -59,42 +65,42 @@ def parse(input: str):
 
 		if a == "CAR":
 			a, b = split_on_separator(b)
-			return (parse(a), None)
+			return (eval(a), None)
 		elif a == "CDR":
 			a, b = split_on_separator(b)
-			return (parse(b), None)
+			return (eval(b), None)
 		elif a == "CONS":
 			sub_a, sub_b = split_on_separator(b)
-			return (parse(sub_a), parse(sub_b))
+			return (eval(sub_a), eval(sub_b))
 		elif a == "EQ":
 			sub_a, sub_b = split_on_separator(b)
-			return (parse(sub_a) == parse(sub_b), None)		
+			return (eval(sub_a) == eval(sub_b), None)		
 		elif a == "COND":
 			sub_a, sub_b = split_on_separator(b)
-			test = parse(sub_a) # Returns a value and a terminating NIL
-			eval_on_true = parse(sub_b)
+			test = eval(sub_a) # Returns a value and a terminating NIL
+			eval_on_true = eval(sub_b)
 			return (eval_on_true if test[0] else None, None)
 
-		return (parse(a), parse(b))
+		return (eval(a), eval(b))
 	return f"'{input}"
 		
 
 if __name__ == '__main__':
-	""" Try evaluating some expressions. """
+	""" Try evaluating some expressions. Some of these are from the original paper."""
 	#parse("(A.((B.(C.NIL)).(D.NIL)))")
 	#parse("(CAR.(X.Y))") # returns X
 	#parse("(CAR.((CDR.(X.Y)).Z))") # returns Y	
-	#print(parse("(CONS.((CAR.(A.B)).(CDR.(A.C))))")) # returns (A,C)
-	#print(parse("(CONS.((CONS.(A.B)).C))")) # returns ((A.B).C)
-	#print(parse(oneline("""
+	#print(parse("(CONS.((CAR.(A.B)).(CDR.(A.C))))")) # prints (A,C)
+	#print(parse("(CONS.((CONS.(A.B)).C))")) # prints ((A.B).C)
+	print(eval(oneline("""
 			 (CONS.(
 			 	(CONS.(
 			 		(CAR.(A.B)).
 			 		(CDR.(A.C))
-			 	)).D))"""))) # returns ((A.C).D)
-	print(parse(oneline("""
+			 	)).D))"""))) # prints ((A.C).D)
+	print(eval(oneline("""
 			 (COND.(
 			 	(EQ.(
 			 		A.
 			 		A)
-			 	).TRUE))"""))) # returns (TRUE, NIL)
+			 	).TRUE))"""))) # prints (TRUE, NIL)
