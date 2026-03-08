@@ -30,7 +30,7 @@ def oneline(input):
 def split_list(input: str, separator=",") -> List:
 	""" Split a parenthesized string into a Python list, to a depth of 1. Discard the outer parentheses.
 	 Defaults to the original paper's use of , to denote an arbitrary-length list.
-	 i.e: ((AB,C,D), E) returns a list of ["(AB,C,D)", "E"]"""
+	 i.e: ((AB,C,D), E, F) returns a list of ["(AB,C,D)", "E", "F"]"""
 	if input[0] != "(":
 		raise Exception(f"Missing opening parenthesis for '{input}'")
 	if input[-1] != ")":
@@ -65,39 +65,40 @@ def eval(input: str) -> List:
 		elif first == "CDR":
 			return eval(splitted[1])[1]
 		elif first == "CONS":
+			if len(splitted) != 3:
+				raise Exception(f"Need 2 parameters after CONS. Got {splitted}")
 			first_parameter = eval(splitted[1])
 			second_parameter = eval(splitted[2])
 			return first_parameter + second_parameter
+		elif first == "COND":
+			splitted.pop(0)
+			while len(splitted) > 0:
+				conditional = split_list(splitted.pop(0))
+				if eval(conditional[0]) == "TRUE":
+					return eval(conditional[1])
+			return "FALSE"
 		elif first == "ATOM":
 			return [splitted[1]]
-		# elif a == "EQ":
-		# 	sub_a, sub_b = split_on_separator(b)
-		# 	return (parse(sub_a) == parse(sub_b), None)		
-		# elif a == "COND":
-		# 	sub_a, sub_b = split_on_separator(b)
-		# 	test = parse(sub_a) # Returns a value and a terminating NIL
-		# 	eval_on_true = parse(sub_b)
-		# 	return (eval_on_true if test[0] else None, None)
+		elif first == "EQ":
+			first_parameter = eval(splitted[1])
+			second_parameter = eval(splitted[2])
+			if first_parameter == second_parameter:
+				return "TRUE"
+			return "FALSE"
 
 		return [eval(x) for x in splitted]
 	return [f"'{input}"]
 
 if __name__ == '__main__':
 	""" Try evaluating some expressions. Some of these are from the original paper."""
-	#print(eval("(A,(B,C),D)")) # returns [A,[B,C],D]
+	print(eval("(A,(B,C),D)")) # returns [A,[B,C],D]
 	print(eval("(CAR,((ATOM,X),(ATOM,Y)))")) # returns [X]
 	print(eval("(CAR,(CDR,((ATOM,X),(ATOM,Y))),(ATOM,Z))")) # returns [Y]	
 	print(eval("(CONS,(CAR,((ATOM,A),(ATOM,B))),(CDR,((ATOM,A),(ATOM,C))))")) # prints (A,C)
 	print(eval("(CONS,(CONS,(ATOM,A),(ATOM,B)),(ATOM,C))")) # prints (A,B,C)
-	# print(parse(oneline("""
-	# 		 (CONS.(
-	# 		 	(CONS.(
-	# 		 		(CAR.(A.B)).
-	# 		 		(CDR.(A.C))
-	# 		 	)).D))"""))) # prints ((A.C).D)
-	# print(parse(oneline("""
-	# 		 (COND.(
-	# 		 	(EQ.(
-	# 		 		A.
-	# 		 		A)
-	# 		 	).TRUE))"""))) # prints (TRUE, NIL)
+	print(eval(oneline("""
+			 (CONS,
+			 	(CONS,(CAR,(A,B)),(CDR,(A,C))),
+				(ATOM,D)
+			 )"""))) # prints ((A,C),D)
+	print(eval("(COND,((EQ,(ATOM,A),(ATOM,B)),(ATOM,FOO)),((EQ,(ATOM,B),(ATOM,B)),(ATOM,BAR)))")) # prints BAR
