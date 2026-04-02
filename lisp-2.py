@@ -8,6 +8,7 @@
 # 
 # - e is the body of a function in modern parlance
 # - label(a, e) defines a function e named a
+# - * means translate M-expression to an equivalent S-expression
 
 # --- Commands
 
@@ -63,7 +64,7 @@ def eval(input: str) -> List:
 		if first == "CAR":
 			return eval(splitted[1])[0]
 		elif first == "CDR":
-			return eval(splitted[1])[1]
+			return eval(splitted[1])[1:]
 		elif first == "CONS":
 			if len(splitted) != 3:
 				raise Exception(f"Need 2 parameters after CONS. Got {splitted}")
@@ -96,9 +97,14 @@ if __name__ == '__main__':
 	print(eval("(CAR,(CDR,((ATOM,X),(ATOM,Y))),(ATOM,Z))")) # returns [Y]	
 	print(eval("(CONS,(CAR,((ATOM,A),(ATOM,B))),(CDR,((ATOM,A),(ATOM,C))))")) # prints (A,C)
 	print(eval("(CONS,(CONS,(ATOM,A),(ATOM,B)),(ATOM,C))")) # prints (A,B,C)
+	print(eval("(CDR,((ATOM,A),(ATOM,B),(ATOM,C),(ATOM,D)))")) # prints (B,C,D)
 	print(eval(oneline("""
 			 (CONS,
 			 	(CONS,(CAR,(A,B)),(CDR,(A,C))),
 				(ATOM,D)
 			 )"""))) # prints ((A,C),D)
 	print(eval("(COND,((EQ,(ATOM,A),(ATOM,B)),(ATOM,FOO)),((EQ,(ATOM,B),(ATOM,B)),(ATOM,BAR)))")) # prints BAR
+	
+	# not implemented yet
+	#print(eval("(SUBST,(X,A),B,((A,B),C))")) # prints ((A,(X,A)),C)
+	#print(eval("apply[LAMBDA,(X,Y),(CONS,(CAR,X),Y));((A,B),(C,D))]")) # prints (A,C,D)
