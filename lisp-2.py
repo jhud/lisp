@@ -6,6 +6,9 @@
 # of 2-tuple dot format.
 # We dispense completely with the "." tuple, and only use the comma format, like the last half of the paper.
 # 
+# I tried not to add any later language and compiler theory beyond what was in the paper.
+# There is no environment for storing variables or defining functions; this will come in future iterations of the parser. 
+#
 # - e is the body of a function in modern parlance
 # - label(a, e) defines a function e named a
 # - * means translate M-expression to an equivalent S-expression
@@ -13,7 +16,7 @@
 # --- Commands
 
 # ATOM(x) true if x is atomic
-# EQ(x,y) boolean, compare 2 if atoms are equal
+# EQ(x,y) boolean, compare 2 if ATOMs are equal
 # CAR(x) return the 1st element of the tuple
 # CDR(x) return 2nd element of the tuple
 # CONS(x; y) make a tuple of x and y
@@ -78,7 +81,7 @@ def eval(input: str) -> List:
 				if eval(conditional[0]) == "TRUE":
 					return eval(conditional[1])
 			return "FALSE"
-		elif first == "ATOM":
+		elif first == "QUOTE":
 			return [splitted[1]]
 		elif first == "EQ":
 			first_parameter = eval(splitted[1])
@@ -93,17 +96,17 @@ def eval(input: str) -> List:
 if __name__ == '__main__':
 	""" Try evaluating some expressions. Some of these are from the original paper."""
 	print(eval("(A,(B,C),D)")) # returns [A,[B,C],D]
-	print(eval("(CAR,((ATOM,X),(ATOM,Y)))")) # returns [X]
-	print(eval("(CAR,(CDR,((ATOM,X),(ATOM,Y))),(ATOM,Z))")) # returns [Y]	
-	print(eval("(CONS,(CAR,((ATOM,A),(ATOM,B))),(CDR,((ATOM,A),(ATOM,C))))")) # prints (A,C)
-	print(eval("(CONS,(CONS,(ATOM,A),(ATOM,B)),(ATOM,C))")) # prints (A,B,C)
-	print(eval("(CDR,((ATOM,A),(ATOM,B),(ATOM,C),(ATOM,D)))")) # prints (B,C,D)
+	print(eval("(CAR,((QUOTE,X),(QUOTE,Y)))")) # returns [X]
+	print(eval("(CAR,(CDR,((QUOTE,X),(QUOTE,Y))),(QUOTE,Z))")) # returns [Y]	
+	print(eval("(CONS,(CAR,((QUOTE,A),(QUOTE,B))),(CDR,((QUOTE,A),(QUOTE,C))))")) # prints (A,C)
+	print(eval("(CONS,(CONS,(QUOTE,A),(QUOTE,B)),(QUOTE,C))")) # prints (A,B,C)
+	print(eval("(CDR,((QUOTE,A),(QUOTE,B),(QUOTE,C),(QUOTE,D)))")) # prints (B,C,D)
 	print(eval(oneline("""
 			 (CONS,
 			 	(CONS,(CAR,(A,B)),(CDR,(A,C))),
-				(ATOM,D)
+				(QUOTE,D)
 			 )"""))) # prints ((A,C),D)
-	print(eval("(COND,((EQ,(ATOM,A),(ATOM,B)),(ATOM,FOO)),((EQ,(ATOM,B),(ATOM,B)),(ATOM,BAR)))")) # prints BAR
+	print(eval("(COND,((EQ,(QUOTE,A),(QUOTE,B)),(QUOTE,FOO)),((EQ,(QUOTE,B),(QUOTE,B)),(QUOTE,BAR)))")) # prints BAR
 	
 	# not implemented yet
 	#print(eval("(SUBST,(X,A),B,((A,B),C))")) # prints ((A,(X,A)),C)
