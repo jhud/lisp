@@ -15,6 +15,7 @@
 
 # --- Commands
 
+# QUOTE(x) do not attempt to parse x, just treat it as a list.
 # ATOM(x) true if x is atomic
 # EQ(x,y) boolean, compare 2 if ATOMs are equal
 # CAR(x) return the 1st element of the tuple

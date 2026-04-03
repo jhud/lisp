@@ -1,20 +1,5 @@
-# Python LISP interpreter based on the original 1960 John McCarthy paper:
-# "Recursive Functions of Symbolic Expressions and Their Computation by Machine, Part I"
-# https://www-formal.stanford.edu/jmc/recursive.pdf
 #
-# This is a fascinating paper; many "new innovations" from the next 70 years of computer science are already laid out 
-# here, such as functional programming and garbage collection. It blew my mind the first time I realised that the 
-# short LISP m-expression on page 17 was the entire LISP interpreter itself.
-#
-# This LISP variant is not designed to be particularly useful, correct, elegant, or readable; 
-# it is a minimal implementation of S-expression LISP from the original paper, and should be read
-# in conjunction with that.
-# 
-# Why write this? In my opinion, there is quite a jump from the original paper to all later practical LISP implementations.
-# I couldn't find any minimal code examples of theoretical LISP from the original paper, so I wrote it in order
-# to better appreciate how theoretical LISP became a practical programming language.
-#
-# I made this without reference to any future work. It uses ordered pairs (2-tuples), without the shorthand
+# This file is based on the first part of the paper: it uses ordered pairs (2-tuples), without the shorthand
 # comma format for representing arbitrarily long lists. This notation quickly becomes impractical when trying to
 # write actual programs. For this reason, not all functions are implemented - just the most basic ones from the paper, in order to demonstrate the basic
 # concepts.

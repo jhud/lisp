@@ -6,9 +6,13 @@
 # deviates from the material in the paper, and works more like a practical
 # interpreter by performing discrete lexing and parsing steps over the input LISP.
 # 
-# - e is the body of a function in modern parlance
-# - label(a, e) defines a function e named a
-# - * means translate M-expression to an equivalent S-expression
+# This file was based on the following impelmentations:
+# Simple lexing and parsing:
+# https://zstix.io/posts/make-a-lisp-in-python/
+#
+# Recommended if you want a usable LISP that is still very close to the McCarthy paper:
+# http://kjetilvalle.com/posts/original-lisp.html
+
 
 # --- Commands
 
@@ -17,7 +21,7 @@
 # EQ(x,y) boolean, compare 2 if atoms are equal
 # CAR(x) return the 1st element of the tuple
 # CDR(x) return 2nd element of the tuple
-# CONS(x; y) make a tuple of x and y
+# CONS(x; y) construct a list of x and y
 # EQ(x; y) compare x to y and return true if they are equal
 # COND (x; y) if x is true then y
 
@@ -45,58 +49,106 @@ def parse(tokens):
 	else:
 		return token
 
+def apply(exp, env):
+	"""Apply a lambda function: ((LAMBDA, list of parameters, body), argument 1, argument 2, ...)
+	The format of this is not explicitly defined in the original paper, but we assume
+	that it fits the standard format of (FUNCTION,parameter,parameter,...).
+	"""
+	function, args = exp[0], exp[1:]
+	_, params, body = function
+
+	# Evaluate the arguments and create a new env dictionary containing the params passed to the function.
+	evaluated_args = {name: eval(val, env) for name,val in zip(params, args)}
+
+	# Merge the dicts and evaluate the function.
+	# order matters - evaluated args override existing env.
+	new_env = {**env, **evaluated_args} 
+	return eval(body, new_env)
+
 
 def is_atom(exp): 
     return isinstance(exp, str)
 
 def eval(node, env):
 	""" Recursively evaluate an AST. """
-	print(f"Evaluating {node}")
 	if type(node) is list:
 		[fn, *args] = node
-		match fn:
-			case "ATOM":
-				return "t" if is_atom(eval(args[0])) else "f"
-			case "QUOTE":
-				return args[0]
-			case "CAR":
-				evaled = eval(args[0], env)
-				return evaled[0]
-			case "CDR":
-				evaled = eval(args[0], env)
-				if len(evaled) == 1:
-					return "nil"
-				return evaled[1:]
-			case "EQ":
-				lhs = eval(args[0], env)
-				rhs = eval(args[1], env)
-				return "t" if lhs == rhs and is_atom(lhs) else "f"
-			case _:
-				raise ValueError(f"Undefined function: {fn}")
+
+		if is_atom(fn):
+			# Treat atoms as function names. Handle the inbuilt functions.
+			match fn:
+				case "ATOM":
+					return "t" if is_atom(eval(args[0], env)) else "f"
+				case "QUOTE":
+					return args[0]
+				case "CAR":
+					evaled = eval(args[0], env)
+					return evaled[0]
+				case "CDR":
+					evaled = eval(args[0], env)
+					if len(evaled) == 1:
+						return "nil"
+					return evaled[1:]
+				case "EQ":
+					lhs = eval(args[0], env)
+					rhs = eval(args[1], env)
+					return "t" if lhs == rhs and is_atom(lhs) else "f"
+				case "CONS":
+					rhs = eval(args[1], env)
+					if rhs == 'nil':
+						rhs = []
+					lhs = eval(args[0], env)
+					return [lhs] + rhs
+				case "COND":
+					for p, e in args:
+						if eval(p, env) == 't':
+							return eval(e, env)
+				case _:
+					raise ValueError(f"Undefined function: {fn}")
+		elif node[0][0] == "LAMBDA":
+			# We expect a list that begins with LAMBDA that encapsulates the function, then a list of parameters.
+			return apply(node, env)
+		
+
 	elif type(node) is str:
-		return node # atom - eventually this should look up the value
+		return env[node] # Lookup the value of the variable in our environment
 	else:
 		raise ValueError(f"invalid node: {node}")
 
 
-def apply(program):
+def interpret(program):
+	""" Process a string and produce an output. This is how we execute our programs."""
 	tokens = lex(program)
 	tree = parse(tokens)
+	if not tree:
+		raise ValueError("Probably missing a closing parenthesis.")
 	return eval(tree, env=dict())
 
 if __name__ == '__main__':
 	""" Try evaluating some expressions."""
-	print(apply("""
+	print(interpret("""
 					(EQ,
 			 		(CDR,
 			 			(QUOTE,
-			 				(X,Y,Z)
+			 				((QUOTE,X),(QUOTE,Y),(QUOTE,Z))
 			 			)
 			 		),
-			 X
+			 (QUOTE,X)
 			 )
-"""))
-
+""")) # prints f
+	print(interpret("""(CONS, (QUOTE,A), (QUOTE,((QUOTE,X),(QUOTE,Y),(QUOTE,Z))))""")) # prints A,X,Y.Z
+	print(interpret("""(COND ((EQ,(QUOTE,a),(QUOTE,b)),(QUOTE,first))
+         				 ((ATOM,(QUOTE,a)),(QUOTE,second)))""")) # prints second
+	print(interpret("""
+				 ((LAMBDA,(x,y),(CONS,x,(CDR,y))),(QUOTE,z),(QUOTE,(a,b,c)))
+				 """)) # prints zbc
+# 	print(interpret("""
+#    ((LABEL,GREET,(LAMBDA,(x),
+#                    (COND,((ATOM,x) 
+#                            (CONS,(QUOTE,hello),(CONS,(x,(QUOTE,nil))))
+#                          ((QUOTE,t),(GREET,(CAR,x))))))
+#     (QUOTE,world))
+# """)) # prints hello world
 
 
 
