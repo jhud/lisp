@@ -2,9 +2,12 @@
 # "Recursive Functions of Symbolic Expressions and Their Computation by Machine, Part I"
 # https://www-formal.stanford.edu/jmc/recursive.pdf
 #
-# This is the final development of the previous LISP interpreter - it 
-# deviates from the material in the paper, and works more like a practical
-# interpreter by performing discrete lexing and parsing steps over the input LISP.
+# Based on Kjetil Valle's parser to make it look more like practical LISP,
+# and give some quality-of-life improvements outside the paper.
+#
+# - uses lowercase
+# - spaces instead of commas
+# - adds function management
 # 
 # This file was based on the following implementations:
 # Simple lexing and parsing:
@@ -14,24 +17,12 @@
 # http://kjetilvalle.com/posts/original-lisp.html
 
 
-# --- Commands
-
-# QUOTE(x) do not evaulate X, but return it back up the parse tree. Used for defining lists or constants.
-# ATOM(x) true if x is atomic
-# EQ(x,y) boolean, compare 2 if atoms are equal
-# CAR(x) return the 1st element of the tuple
-# CDR(x) return 2nd element of the tuple
-# CONS(x; y) construct a list of x and y
-# EQ(x; y) compare x to y and return true if they are equal
-# COND (x; y) if x is true then y
-# (LAMBDA, list of parameters, body), argument 1, argument 2, ...) - lambda function
-# LABEL name a lambda function by putting it into the environment
-
 import re
+
 
 def lex(input):
 	""" Tokenize the input string. """
-	return re.findall(r"[()]|[^(), \n\t]+", input)
+	return re.findall(r"[()']|[^() \n\t']+", input)
 
 
 def parse(tokens):
@@ -45,6 +36,8 @@ def parse(tokens):
 				return result
 			else:
 				result.append(parse(tokens))
+	elif token == "'":
+		return ['quote', parse(tokens)]
 	else:
 		return token
 
@@ -76,6 +69,12 @@ def label(node, env):
 	new_env[var_name] = node[0]
 	return eval([function] + args, new_env)
 
+def defun(args, env):
+	""" Define function. Modifies the global environment. """
+	name, params, body = args[0], args[1], args[2]
+	env[name] = ["label", name, ["lambda", params, body]]
+	return name
+
 def is_atom(exp): 
     return isinstance(exp, str)
 
@@ -87,41 +86,47 @@ def eval(node, env):
 		if is_atom(fn):
 			# Treat atoms as function names. Handle the minimal inbuilt functions needed to interpret LISP in LISP.
 			match fn:
-				case "ATOM":
+				case "atom":
 					return "t" if is_atom(eval(args[0], env)) else "f"
-				case "QUOTE":
+				case "quote":
 					return args[0]
-				case "CAR":
+				case "car":
 					evaled = eval(args[0], env)
 					return evaled[0]
-				case "CDR":
+				case "cdr":
 					evaled = eval(args[0], env)
 					if len(evaled) == 1:
 						return "nil"
 					return evaled[1:]
-				case "EQ":
+				case "eq":
 					lhs = eval(args[0], env)
 					rhs = eval(args[1], env)
 					return "t" if lhs == rhs and is_atom(lhs) else "f"
-				case "CONS":
+				case "cons":
 					rhs = eval(args[1], env)
 					if rhs == 'nil':
 						rhs = []
 					lhs = eval(args[0], env)
 					return [lhs] + rhs
-				case "COND":
+				case "cond":
 					for p, e in args:
 						if eval(p, env) == 't':
 							return eval(e, env)
+				case "defun":
+					return defun(args, env)
+				case "progn":
+					for expression in args:
+						result = eval(expression, env)
+					return result
 				case _:
 					# Must be a labelled function if it is not inbuilt.
 					function = env[fn]
 					return eval([function] + args, env)
 
-		elif node[0][0] == "LAMBDA":
+		elif node[0][0] == "lambda":
 			# A special case to handle lambda function.
 			return apply(node, env)
-		elif node[0][0] == "LABEL":
+		elif node[0][0] == "label":
 			# A special case to handle lambda function.
 			return label(node, env)
 	elif type(node) is str:
@@ -130,41 +135,63 @@ def eval(node, env):
 		raise ValueError(f"invalid node: {node}")
 
 
-def interpret(program):
+def interpret(program, env=dict()):
 	""" Process a string and produce an output. This is how we execute our programs."""
 	tokens = lex(program)
 	tree = parse(tokens)
 	if not tree:
 		raise ValueError("Probably missing a closing parenthesis.")
-	return eval(tree, env=dict())
+	return eval(tree, env)
 
 if __name__ == '__main__':
 	""" Try evaluating some expressions."""
+
+
+	env = dict()
+	interpret("""
+		   (progn 
+(defun null (x)
+	(eq x 'nil))
+		   
+(defun and (x y)
+    (cond (x (cond (y 't) ('t 'f)))
+          ('t 'f)))
+
+(defun or (x y)
+    (cond (x 't) 
+          ('t (cond (y 't) ('t 'f)))))
+
+(defun not (x)
+    (cond (x 'f)
+          ('t 't)))
+
+		   )
+		   """, env)
+	
+	print(interpret("(null '(foo bar))", env))
+	print(interpret("(and 't 't)", env))
+	
 	print(interpret("""
-					(EQ,
-			 		(CDR,
-			 			(QUOTE,
-			 				((QUOTE,X),(QUOTE,Y),(QUOTE,Z))
-			 			)
-			 		),
-			 (QUOTE,X)
-			 )
+					(eq
+			 		(cdr 'X 'Y 'Z) 'X)
 """)) # prints f
-	print(interpret("""(CONS, (QUOTE,A), (QUOTE,((QUOTE,X),(QUOTE,Y),(QUOTE,Z))))""")) # prints A,X,Y.Z
-	print(interpret("""(COND,((EQ,(QUOTE,a),(QUOTE,b)),(QUOTE,first))
-         				 ((ATOM,(QUOTE,a)),(QUOTE,second)))""")) # prints second
+	print(interpret("""(cons 'A '(X Y Z))""")) # prints A,X,Y.Z
+	print(interpret("""	(cond
+				 		 	((eq 'a 'b) 'first)
+         					((atom 'a) 'second)
+				 		)""")) # prints second
 	print(interpret("""
-				 ((LAMBDA,(x,y),(CONS,x,(CDR,y))),(QUOTE,z),(QUOTE,(a,b,c)))
-				 """)) # prints zbc
+  ((lambda (x y) (cons x (cdr y)))
+       'z
+       '(a b c))
+ """)) # prints zbc
 	print(interpret("""
-   	(
-	  (LABEL,GREET,(LAMBDA,(x),
-                   (COND,
-				 		((ATOM,x),(CONS,(QUOTE,hello),(CONS,x,(QUOTE,nil)))),
-                        ((QUOTE,t),(GREET,(CAR,x)))))),
-      (QUOTE,(world))
-   	)
-""")) # prints hello world, and if the passed parameter is a list, it will recurse to use the first item of the list.
+   ((label greet (lambda (x) 
+                   (cond ((atom x) 
+                           (cons 'hello (cons x 'nil)))
+                         ('t (greet (car x))))))
+    '(world))
+ """)) # prints hello world, and if the passed parameter is a list, it will recurse to use the first item of the list.
 
 
 
