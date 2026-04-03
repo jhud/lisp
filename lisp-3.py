@@ -10,7 +10,7 @@
 # Simple lexing and parsing:
 # https://zstix.io/posts/make-a-lisp-in-python/
 #
-# Recommended if you want a usable LISP that is still very close to the McCarthy paper:
+# Recommended if you want a usable LISP which is still very close to the McCarthy paper:
 # http://kjetilvalle.com/posts/original-lisp.html
 
 
@@ -24,6 +24,8 @@
 # CONS(x; y) construct a list of x and y
 # EQ(x; y) compare x to y and return true if they are equal
 # COND (x; y) if x is true then y
+# (LAMBDA, list of parameters, body), argument 1, argument 2, ...) - lambda function
+# LABEL name a lambda function by putting it into the environment
 
 
 from typing import List
@@ -49,22 +51,33 @@ def parse(tokens):
 	else:
 		return token
 
-def apply(exp, env):
-	"""Apply a lambda function: ((LAMBDA, list of parameters, body), argument 1, argument 2, ...)
+def apply(node, env):
+	""" Apply a lambda function: ((LAMBDA, list of parameters, body), argument 1, argument 2, ...)
 	The format of this is not explicitly defined in the original paper, but we assume
 	that it fits the standard format of (FUNCTION,parameter,parameter,...).
 	"""
-	function, args = exp[0], exp[1:]
+	function, args = node[0], node[1:]
 	_, params, body = function
 
-	# Evaluate the arguments and create a new env dictionary containing the params passed to the function.
+	# Evaluate all the arguments and create an env dictionary containing the params passed to the function.
 	evaluated_args = {name: eval(val, env) for name,val in zip(params, args)}
 
 	# Merge the dicts and evaluate the function.
-	# order matters - evaluated args override existing env.
-	new_env = {**env, **evaluated_args} 
+	new_env = {**env, **evaluated_args} # order matters - evaluated args override existing env values.
 	return eval(body, new_env)
 
+
+def label(node, env):
+	""" 
+	Put a lambda function into the environment: (LABEL, label, function)
+	and then call it.
+	Labelled functions allow the lambda to refer to itself, to be used in recursion.
+	"""
+	_, var_name, function = node[0]
+	args = node[1:]
+	new_env = env.copy()
+	new_env[var_name] = node[0]
+	return eval([function] + args, new_env)
 
 def is_atom(exp): 
     return isinstance(exp, str)
@@ -75,7 +88,7 @@ def eval(node, env):
 		[fn, *args] = node
 
 		if is_atom(fn):
-			# Treat atoms as function names. Handle the inbuilt functions.
+			# Treat atoms as function names. Handle the minimal inbuilt functions needed to interpret LISP in LISP.
 			match fn:
 				case "ATOM":
 					return "t" if is_atom(eval(args[0], env)) else "f"
@@ -104,12 +117,16 @@ def eval(node, env):
 						if eval(p, env) == 't':
 							return eval(e, env)
 				case _:
-					raise ValueError(f"Undefined function: {fn}")
-		elif node[0][0] == "LAMBDA":
-			# We expect a list that begins with LAMBDA that encapsulates the function, then a list of parameters.
-			return apply(node, env)
-		
+					# Must be a labelled function if it is not inbuilt.
+					function = env[fn]
+					return eval([function] + args, env)
 
+		elif node[0][0] == "LAMBDA":
+			# A special case to handle lambda function.
+			return apply(node, env)
+		elif node[0][0] == "LABEL":
+			# A special case to handle lambda function.
+			return label(node, env)
 	elif type(node) is str:
 		return env[node] # Lookup the value of the variable in our environment
 	else:
@@ -137,18 +154,20 @@ if __name__ == '__main__':
 			 )
 """)) # prints f
 	print(interpret("""(CONS, (QUOTE,A), (QUOTE,((QUOTE,X),(QUOTE,Y),(QUOTE,Z))))""")) # prints A,X,Y.Z
-	print(interpret("""(COND ((EQ,(QUOTE,a),(QUOTE,b)),(QUOTE,first))
+	print(interpret("""(COND,((EQ,(QUOTE,a),(QUOTE,b)),(QUOTE,first))
          				 ((ATOM,(QUOTE,a)),(QUOTE,second)))""")) # prints second
 	print(interpret("""
 				 ((LAMBDA,(x,y),(CONS,x,(CDR,y))),(QUOTE,z),(QUOTE,(a,b,c)))
 				 """)) # prints zbc
-# 	print(interpret("""
-#    ((LABEL,GREET,(LAMBDA,(x),
-#                    (COND,((ATOM,x) 
-#                            (CONS,(QUOTE,hello),(CONS,(x,(QUOTE,nil))))
-#                          ((QUOTE,t),(GREET,(CAR,x))))))
-#     (QUOTE,world))
-# """)) # prints hello world
+	print(interpret("""
+   	(
+	  (LABEL,GREET,(LAMBDA,(x),
+                   (COND,
+				 		((ATOM,x),(CONS,(QUOTE,hello),(CONS,x,(QUOTE,nil)))),
+                        ((QUOTE,t),(GREET,(CAR,x)))))),
+      (QUOTE,(world))
+   	)
+""")) # prints hello world, and if the passed parameter is a list, it will recurse to use the first item of the list.
 
 
 
