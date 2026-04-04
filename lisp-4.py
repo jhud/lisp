@@ -2,6 +2,8 @@
 # "Recursive Functions of Symbolic Expressions and Their Computation by Machine, Part I"
 # https://www-formal.stanford.edu/jmc/recursive.pdf
 #
+# Final iteration - a fully-working LISP interpreter.
+#
 # Based on Kjetil Valle's project, to make it look more like practical LISP,
 # and give some quality-of-life improvements outside the paper.
 #
