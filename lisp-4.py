@@ -2,12 +2,13 @@
 # "Recursive Functions of Symbolic Expressions and Their Computation by Machine, Part I"
 # https://www-formal.stanford.edu/jmc/recursive.pdf
 #
-# Based on Kjetil Valle's parser to make it look more like practical LISP,
+# Based on Kjetil Valle's project, to make it look more like practical LISP,
 # and give some quality-of-life improvements outside the paper.
 #
 # - uses lowercase
 # - spaces instead of commas
-# - adds function management
+# - adds function management helpers (defun and progn)
+# - implements utility functions and LISP eval
 # 
 # This file was based on the following implementations:
 # Simple lexing and parsing:
@@ -40,6 +41,19 @@ def parse(tokens):
 		return ['quote', parse(tokens)]
 	else:
 		return token
+
+
+def unparse(node):
+	""" Produce tokens from Abstract Syntax Tree. Used for generating debug output in LISP."""
+	if type(node) is list:
+		listed = ""
+		for x in node:
+			listed += unparse(x) + " "
+		return f"({listed[:-1]})"
+	if is_atom(node):
+		return node
+	return node
+
 
 def apply(node, env):
 	""" Apply a lambda function: ((LAMBDA, list of parameters, body), argument 1, argument 2, ...)
@@ -85,11 +99,15 @@ def eval(node, env):
 
 		if is_atom(fn):
 			# Treat atoms as function names. Handle the minimal inbuilt functions needed to interpret LISP in LISP.
-			match fn:
-				case "atom":
-					return "t" if is_atom(eval(args[0], env)) else "f"
+			match fn:				
 				case "quote":
 					return args[0]
+				case "atom":
+					return "t" if is_atom(eval(args[0], env)) else "f"
+				case "eq":
+					lhs = eval(args[0], env)
+					rhs = eval(args[1], env)
+					return "t" if lhs == rhs and is_atom(lhs) else "f"
 				case "car":
 					evaled = eval(args[0], env)
 					return evaled[0]
@@ -98,10 +116,6 @@ def eval(node, env):
 					if len(evaled) == 1:
 						return "nil"
 					return evaled[1:]
-				case "eq":
-					lhs = eval(args[0], env)
-					rhs = eval(args[1], env)
-					return "t" if lhs == rhs and is_atom(lhs) else "f"
 				case "cons":
 					rhs = eval(args[1], env)
 					if rhs == 'nil':
@@ -141,35 +155,109 @@ def interpret(program, env=dict()):
 	tree = parse(tokens)
 	if not tree:
 		raise ValueError("Probably missing a closing parenthesis.")
-	return eval(tree, env)
+	result = eval(tree, env)
+	return unparse(result)
 
 if __name__ == '__main__':
 	""" Try evaluating some expressions."""
 
 
 	env = dict()
+
+	# Add the remaining functions needed to implement LISP eval and add it
 	interpret("""
 		   (progn 
-(defun null (x)
-	(eq x 'nil))
+			(defun caar (lst) (car (car lst)))
+			(defun cddr (lst) (cdr (cdr lst)))
+			(defun cadr (lst) (car (cdr lst)))
+			(defun cdar (lst) (cdr (car lst)))
+			(defun cadar (lst) (car (cdr (car lst))))
+			(defun caddr (lst) (car (cdr (cdr lst))))
+			(defun caddar (lst) (car (cdr (cdr (car lst)))))
 		   
-(defun and (x y)
-    (cond (x (cond (y 't) ('t 'f)))
-          ('t 'f)))
+		   	(defun assoc (var lst)
+  				(cond ((eq (caar lst) var) (cadar lst))
+        		('t (assoc var (cdr lst)))))
+		   
+			(defun eval (exp env)
+			(cond
+				((atom exp) (assoc exp env))
+				((atom (car exp))
+				(cond
+				((eq (car exp) 'quote) (cadr exp))
+				((eq (car exp) 'atom)  (atom (eval (cadr exp) env)))
+				((eq (car exp) 'eq)    (eq   (eval (cadr exp) env)
+												(eval (caddr exp) env)))
+				((eq (car exp) 'car)   (car  (eval (cadr exp) env)))
+				((eq (car exp) 'cdr)   (cdr  (eval (cadr exp) env)))
+				((eq (car exp) 'cons)  (cons (eval (cadr exp) env)
+												(eval (caddr exp) env)))
+				((eq (car exp) 'cond)  (evcon (cdr exp) env))
+				('t (eval (cons (assoc (car exp) env)
+									(cdr exp))
+							env))))
+				((eq (caar exp) 'label)
+				(eval (cons (caddar exp) (cdr exp))
+						(cons (pair (cadar exp) (car exp)) env)))
+				((eq (caar exp) 'lambda)
+				(eval (caddar exp)
+						(append (zip (cadar exp) (evlis (cdr exp) env))
+								env)))))
 
-(defun or (x y)
-    (cond (x 't) 
-          ('t (cond (y 't) ('t 'f)))))
+			(defun evcon (c env)
+			(cond ((eval (caar c) env)
+					(eval (cadar c) env))
+					('t (evcon (cdr c) env))))
 
-(defun not (x)
-    (cond (x 'f)
-          ('t 't)))
+			(defun evlis (m env)
+			(cond ((null m) 'nil)
+					('t (cons (eval  (car m) env)
+							(evlis (cdr m) env)))))
+		   	)
+			
+		   """, env)
 
-		   )
+	# Add some utility functions
+	interpret("""
+(progn 
+	(defun null (x)
+		(eq x 'nil))
+			
+	(defun and (x y)
+		(cond (x (cond (y 't) ('t 'f)))
+			('t 'f)))
+
+	(defun or (x y)
+		(cond (x 't) 
+			('t (cond (y 't) ('t 'f)))))
+
+	(defun not (x)
+		(cond (x 'f)
+			('t 't)))
+
+  	(defun pair (x y)
+  		(cons x (cons y 'nil)))
+
+	(defun zip (x y)
+		(cond ((and (null x) (null y)) 'nil)
+			((and (not (atom x)) (not (atom y)))
+			(cons (pair (car x) (car y))
+				(zip (cdr x) (cdr y))))))
+
+	(defun reverse (input)
+		(
+		   (label flip (lambda (in out) 
+                   (cond ((atom in) out)
+                         ('t (flip (cdr in) (cons (car in) out)))
+		   )))
+		   input 'nil
+		)
+	)
+)
 		   """, env)
 	
-	print(interpret("(null '(foo bar))", env))
-	print(interpret("(and 't 't)", env))
+	print(interpret("(reverse '(h e l l o 1 2 3 4 5))", env))
+	print(interpret("(eval '(cons x '(b c)) '((x a) (y b)))", env))
 	
 	print(interpret("""
 					(eq
