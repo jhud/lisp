@@ -146,8 +146,10 @@ def eval(node, env):
 			# A special case to handle lambda function.
 			return apply(node, env)
 		elif node[0][0] == "label":
-			# A special case to handle lambda function.
+			# A special case to handle labelling a lambda function.
 			return label(node, env)
+		else:
+			raise ValueError(f"Cannot evaluate this list: {node}")
 	elif type(node) is str:
 		try:
 			return env[node] # Lookup the value of the variable in our environment
@@ -273,6 +275,15 @@ if __name__ == '__main__':
 		   input 'nil
 		)
 	)
+		   
+	(defun replace (input search new_value)
+	(cond
+		((atom input)
+		(cond ((eq input search) new_value)
+			('t input)))
+		('t
+		(cons (replace (car input) search new_value)
+			(replace (cdr input) search new_value)))))
 )
 		   """, env)
 	
