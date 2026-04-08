@@ -21,7 +21,7 @@
 
 
 import re
-
+import readline
 
 def lex(input):
 	""" Tokenize the input string. """
@@ -136,7 +136,10 @@ def eval(node, env):
 					return result
 				case _:
 					# Must be a labelled function if it is not inbuilt.
-					function = env[fn]
+					try:
+						function = env[fn]
+					except KeyError:
+						raise ValueError(f"Labelled function '{node}' not found. Available: {list(env.keys())}")
 					return eval([function] + args, env)
 
 		elif node[0][0] == "lambda":
@@ -146,7 +149,10 @@ def eval(node, env):
 			# A special case to handle lambda function.
 			return label(node, env)
 	elif type(node) is str:
-		return env[node] # Lookup the value of the variable in our environment
+		try:
+			return env[node] # Lookup the value of the variable in our environment
+		except KeyError:
+			raise ValueError(f"Variable '{node}' not found. Available: {env.keys()}")
 	else:
 		raise ValueError(f"invalid node: {node}")
 
@@ -159,6 +165,18 @@ def interpret(program, env=dict()):
 		raise ValueError("Probably missing a closing parenthesis.")
 	result = eval(tree, env)
 	return unparse(result)
+
+def repl(env):
+	""" Run in an endless loop of read, eval, print, loop. """
+	print("Launching REPL...")
+	while True:
+		data = input("* ")
+		if data == "\\quit":
+			break
+		try:
+			print(interpret(data, env))
+		except Exception as e:
+			print(f"ERROR: {e}")
 
 if __name__ == '__main__':
 	""" Try evaluating some expressions."""
@@ -258,6 +276,10 @@ if __name__ == '__main__':
 )
 		   """, env)
 	
+
+
+	repl(env)
+
 	print(interpret("(reverse '(h e l l o 1 2 3 4 5))", env))
 	print(interpret("(eval '(cons x '(b c)) '((x a) (y b)))", env))
 	
