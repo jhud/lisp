@@ -16,7 +16,7 @@ from a programmer's perspective, and to better appreciate how theoretical LISP b
 I tried to write as much as I could without reference to any future work, only using what is found in the paper.
 
 ## The Python files
-I did mulitple implementations, since the paper goes through multiple steps to arrive at a "final" language. 
+I built multiple implementations of increasing complexity, since the paper goes through multiple steps to arrive at a "final" language. 
 
 The original paper does not give a definitive syntax for a usable language; it is a theoretical work. It was later adapted
 into something practical. 
