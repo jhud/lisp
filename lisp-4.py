@@ -11,6 +11,7 @@
 # - spaces instead of commas
 # - adds function management helpers (defun and progn)
 # - implements utility functions and LISP eval
+# - simple REPL
 # 
 # This file was based on the following implementations:
 # Simple lexing and parsing:
@@ -179,6 +180,7 @@ def repl(env):
 			print(interpret(data, env))
 		except Exception as e:
 			print(f"ERROR: {e}")
+			#raise e # Uncomment to use the Python debugger for tracing errors
 
 if __name__ == '__main__':
 	""" Try evaluating some expressions."""
@@ -197,9 +199,15 @@ if __name__ == '__main__':
 			(defun caddr (lst) (car (cdr (cdr lst))))
 			(defun caddar (lst) (car (cdr (cdr (car lst)))))
 		   
-		   	(defun assoc (var lst)
-  				(cond ((eq (caar lst) var) (cadar lst))
-        		('t (assoc var (cdr lst)))))
+			(defun append (x y)
+				(cond ((null x) y)
+					('t (cons (car x) (append (cdr x) y)))))
+
+			(defun assoc (var lst)
+				(cond
+					((null lst) key_error)
+					((eq (caar lst) var) (cadar lst))
+					('t (assoc var (cdr lst)))))
 		   
 			(defun eval (exp env)
 			(cond
@@ -316,5 +324,13 @@ if __name__ == '__main__':
     '(world))
  """)) # prints hello world, and if the passed parameter is a list, it will recurse to use the first item of the list.
 
+	# Define our own names for car and cdr, and patch the program to standard LISP before evaluating. 
+	# It is not possible to extend the language
+	# by replacing the "car" and "cdr" conditional checks in eval, because it breaks self-reference in recursion.
+	print(interpret("""
+				 (eval (replace (replace 
+				 	'(first (remaining '(apple ball cat)))
+				  'first 'car) 'remaining 'cdr) 
+				 	'nil)""", env)) # Prints ball
 
 
