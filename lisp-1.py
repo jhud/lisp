@@ -26,7 +26,7 @@
 
 
 def oneline(input):
-	""" Squish a multline string and remove all whitespace for parsing."""
+	""" Squish a multiline string and remove all whitespace for parsing."""
 	return ''.join(input.split())
 
 def split_on_separator(input: str, separator="."):
@@ -75,11 +75,11 @@ def eval(input: str):
 
 if __name__ == '__main__':
 	""" Try evaluating some expressions. Some of these are from the original paper."""
-	#parse("(A.((B.(C.NIL)).(D.NIL)))")
-	#parse("(CAR.(X.Y))") # returns X
-	#parse("(CAR.((CDR.(X.Y)).Z))") # returns Y	
-	#print(parse("(CONS.((CAR.(A.B)).(CDR.(A.C))))")) # prints (A,C)
-	#print(parse("(CONS.((CONS.(A.B)).C))")) # prints ((A.B).C)
+	print(eval("(A.((B.(C.NIL)).(D.NIL)))")) # returns (A,(B,(C,NIL)),(D, NIL)) - nothing to evaluate
+	print(eval("(CAR.(X.Y))")) # returns X
+	print(eval("(CAR.((CDR.(X.Y)).Z))")) # returns Y	
+	print(eval("(CONS.((CAR.(A.B)).(CDR.(A.C))))")) # prints (A,C)
+	print(eval("(CONS.((CONS.(A.B)).C))")) # prints ((A.B).C)
 	print(eval(oneline("""
 			 (CONS.(
 			 	(CONS.(
