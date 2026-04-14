@@ -1,8 +1,11 @@
 #
-# This file is based on the first part of the paper: it uses ordered pairs (2-tuples), without the shorthand
-# comma format for representing arbitrarily long lists. This notation quickly becomes impractical when trying to
-# write actual programs. For this reason, not all functions are implemented - just the most basic ones from the paper, in order to demonstrate the basic
-# concepts.
+# This file is based on the first part of the paper: it uses ordered pairs (2-tuples), otherwise known as "cons cells".
+# The paper later introduces a notation for arbitrarily long lists, beacuse this notation quickly becomes impractical when trying to
+# write actual programs. For this reason, not all functions are implemented - just the most basic ones from the paper, in 
+# order to demonstrate the basic concepts.
+#
+# You can build arbitrarily long lists, and in fact everything else in LISP, by using these ordered pairs. On the hardware level, 
+# each ordered pair represents a node in a linked list.
 #
 # Some assorted tips for reading the paper from a Python perspective:
 # - S-expressions are simply nested ordered lists, with "atoms" (value instances) as leaves. This format later became the preferred standard for coding LISP.
