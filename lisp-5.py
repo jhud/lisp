@@ -14,8 +14,7 @@
 #
 # In Common Lisp, the macro is defined as a data list, not a function. It is normally passed as 
 # a backquoted list, and selectively evaluated with the comma and @.
-# However, we currently do it in a more old-school way, and define it exactly like a normal function.
-# This is fine, since we are not compiling the code.
+# However, we currently do it in a more old-school using FEXPRs. This is fine, since we are not compiling the code.
 #
 # For debugging, there is a macroexpand function, which will run the substitution over the given expression.
 # 
@@ -45,6 +44,8 @@ def parse(tokens):
 		return ['quote', parse(tokens)]
 	elif token == "`":
 		return ['backquote', parse(tokens)]
+	elif token == ",":
+		return ['comma', parse(tokens)]
 	else:
 		return token
 
@@ -128,6 +129,17 @@ def macro(node, env):
 	expanded = macroexpand(node)
 	return eval(expanded, env)
 
+
+def quasiquote(node, env):
+	""" Handle recursive backquote parsing."""
+	if is_atom(node):
+		return node
+
+	if len(node) > 0 and node[0] == "comma":
+		return eval(node[1], env)
+
+	return [quasiquote(x, env) for x in node]
+
 def is_atom(exp): 
     return isinstance(exp, str)
 
@@ -145,16 +157,7 @@ def eval(node, env):
 				case "backquote":
 					# Return a list of quoted items. If there is a comma, then evaluate it instead.
 					# @todo use @ to splice values into the list
-					arg_stack = args[0].copy()
-					ret = []
-					while len(arg_stack) > 0:
-						val = arg_stack.pop(0)
-						if val == ",":
-							val = arg_stack.pop(0)
-							ret.append(eval(val, env))
-						else:
-							ret.append(val)
-					return ret
+					return quasiquote(args[0], env)
 				case "atom":
 					return "t" if is_atom(eval(args[0], env)) else "f"
 				case "eq":
@@ -193,6 +196,10 @@ def eval(node, env):
 					macro_def = env[expression[0]] # fetch the macro from the environment.
 					internal_node = [macro_def] + expression[1:] # do not mutate the expression list.
 					return macroexpand(internal_node)
+				case "print":
+					value = eval(args[0], env)
+					print(unparse(value))
+					return value
 				case _:
 					# Must be a labelled function if it is not inbuilt.
 					try:
@@ -403,3 +410,25 @@ if __name__ == '__main__':
 	
 
 	print(interpret("""`(foo bar ,(cdr '('apple 'banana 'carrot)))""", env))
+
+
+	# Do something x times, using unary encoding
+	times_test = """
+(progn
+	(defmacro times (thing num)
+	(
+		   (label do-it (lambda (count) 
+				 (progn
+					thing
+                   	(cond ((atom count) 't)
+                         ('t (do-it (cdr count)))))))
+			num)
+			)
+	 
+	(times 
+		(times 
+			(print `(Hi there ,(cdr '('foo 'bar)))) 
+			'(a a)) 
+		'(a a))
+)"""
+	print(interpret(times_test, env)) # Prints hello
