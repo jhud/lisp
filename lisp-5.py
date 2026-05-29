@@ -99,7 +99,8 @@ def defun(args, env):
 def defmacro(args, env):
 	""" Define a macro. Stores a special token 'macro' in the environment, which evalueates to a macro expansion."""
 	name, params, body = args[0], args[1], args[2]
-	env[name] = ["macro", [name, params, body]]
+	env[name] = ["macro", params, body]
+	return None
 
 
 def _substitute(node, substitutions):
@@ -112,22 +113,20 @@ def _substitute(node, substitutions):
 	
 
 def macroexpand(node):
-	""" Expand a macro. Useful for debugging. """
+	""" Expand a macro. """
 	# We rely on the standard labelled function functionality in eval() to
 	# fetch the macro from the environment into the node.
 	# Then we pull apart the node into the various parts.
-	macro_args, macro_body, user_args = node[0][1][1], node[0][1][2], node[1:]
+	macro_def = node[0]     
+	params = macro_def[1]
+	body = macro_def[2]
+	user_args = node[1:]
 
 	# Unlike apply, we do not immediately evaluate the user arguments.
 	# We substitute them into the macro, then evaluate after.
-	substitutions = {name: val for name,val in zip(macro_args, user_args)}
+	substitutions = dict(zip(params, user_args))
 
-	return _substitute(macro_body, substitutions)
-
-def macro(node, env):
-	""" Evaluate a macro. """
-	expanded = macroexpand(node)
-	return eval(expanded, env)
+	return _substitute(body, substitutions)
 
 
 def quasiquote(node, env):
@@ -148,6 +147,13 @@ def eval(node, env):
 	#print(f"Evaluating {node}")
 	if type(node) is list:
 		[fn, *args] = node
+
+		# We need to handle macros as the first preprocessing step.
+		# It must evaluate exactly once to be expanded.
+		if is_atom(fn) and fn in env and env[fn][0] == "macro":
+			macro_def = env[fn]
+			expanded = macroexpand([macro_def] + args)
+			return eval(expanded, env)
 
 		if is_atom(fn):
 			# Treat atoms as function names. Handle the minimal inbuilt functions needed to interpret LISP in LISP.
@@ -217,8 +223,6 @@ def eval(node, env):
 				case "label":
 					# A special case to handle labelling a lambda function.
 					return label(node, env)
-				case "macro":
-					return macro(node, env)
 				case _:
 					raise ValueError(f"Cannot evaluate this list: {node}")
 	elif type(node) is str:
@@ -431,4 +435,21 @@ if __name__ == '__main__':
 			'(a a)) 
 		'(a a))
 )"""
-	print(interpret(times_test, env)) # Prints hello
+	print(interpret(times_test, env)) # prints many outputs
+
+	auto_functions = """
+(progn
+	(defmacro make-functions (name name2)
+	(progn
+			(defun name () (print '(Hi there from name)))
+			(defun name2 () (print '(Hi there from name2)))
+		)
+	)
+	 
+	(make-functions foo bar)
+	(foo)
+	(bar) 
+	(foo)
+	(bar)
+)"""
+	print(interpret(auto_functions, env)) # We have many side effects because of the progn and print, so it prints multiple times.
