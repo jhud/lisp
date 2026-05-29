@@ -10,12 +10,20 @@
 # addresses some of the inflexibility of the standard apply / eval loop. 
 #
 # Instead of macro parameters being evaluated as part of the apply step (ie applicative order evaluation), 
-# they are substituted into the function, and then evaluated (normal order evaluation).
+# they are substituted into the macro, and then the "patched" macro is evaluated.
+#
+# In Common Lisp, the macro is defined as a data list, not a function. It is normally passed as 
+# a backquoted list, and selectively evaluated with the comma and @.
+# However, we currently do it in a more old-school way, and define it exactly like a normal function.
+# This is fine, since we are not compiling the code.
+#
+# For debugging, there is a macroexpand function, which will run the substitution over the given expression.
 # 
-# We also add backquote ` and comma , which allows us to selectively evaluate parts of a quoted list. 
+# We also add backquote ` and comma , which allows us to selectively evaluate parts of a quoted list.
+#
+# Note that we do not handle arbitrary parameter lengths.
 
 import re
-import readline
 
 def lex(input):
 	""" Tokenize the input string. """
@@ -136,6 +144,7 @@ def eval(node, env):
 					return args[0]
 				case "backquote":
 					# Return a list of quoted items. If there is a comma, then evaluate it instead.
+					# @todo use @ to splice values into the list
 					arg_stack = args[0].copy()
 					ret = []
 					while len(arg_stack) > 0:
@@ -181,8 +190,9 @@ def eval(node, env):
 				case "macroexpand":
 					macro_in = args[0]
 					expression = eval(macro_in, env)
-					expression[0] = env[expression[0]] # fetch the macro from the environment
-					return macroexpand(expression)
+					macro_def = env[expression[0]] # fetch the macro from the environment.
+					internal_node = [macro_def] + expression[1:] # do not mutate the expression list.
+					return macroexpand(internal_node)
 				case _:
 					# Must be a labelled function if it is not inbuilt.
 					try:
@@ -206,7 +216,7 @@ def eval(node, env):
 					raise ValueError(f"Cannot evaluate this list: {node}")
 	elif type(node) is str:
 		try:
-			return env[node] # Lookup the value of the variable in our environment
+			return env[node] # Lookup the value of the variable in our environment.
 		except KeyError:
 			raise ValueError(f"Variable '{node}' not found. Available: {env.keys()}")
 	else:
@@ -393,4 +403,3 @@ if __name__ == '__main__':
 	
 
 	print(interpret("""`(foo bar ,(cdr '('apple 'banana 'carrot)))""", env))
-	
