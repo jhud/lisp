@@ -23,6 +23,7 @@
 # Note that we do not handle arbitrary parameter lengths.
 
 import re
+from typing import Any
 
 def lex(input):
 	""" Tokenize the input string. """
@@ -46,6 +47,8 @@ def parse(tokens):
 		return ['backquote', parse(tokens)]
 	elif token == ",":
 		return ['comma', parse(tokens)]
+	elif token == ",@":
+		return ['commaat', parse(tokens)]
 	else:
 		return token
 
@@ -129,15 +132,28 @@ def macroexpand(node):
 	return _substitute(body, substitutions)
 
 
-def quasiquote(node, env):
-	""" Handle recursive backquote parsing."""
+def quasiquote(node, env) -> tuple[Any, bool]:
+	""" Handle recursive backquote parsing.
+		Returns a tuple of the constructed list, and whether it should be spliced into its parent list."""
 	if is_atom(node):
-		return node
+		return node, False
 
-	if len(node) > 0 and node[0] == "comma":
-		return eval(node[1], env)
+	if len(node) > 0: 
+		if node[0] == "comma":
+			return eval(node[1], env), False
+		elif node[0] == "commaat":
+			return eval(node[1], env), True
 
-	return [quasiquote(x, env) for x in node]
+	result = []
+	for x in node:
+		value, splice = quasiquote(x, env)
+		if splice:
+			result.extend(value)
+		else:
+			result.append(value)
+
+	return result, False
+
 
 def is_atom(exp): 
     return isinstance(exp, str)
@@ -148,22 +164,16 @@ def eval(node, env):
 	if type(node) is list:
 		[fn, *args] = node
 
-		# We need to handle macros as the first preprocessing step.
-		# It must evaluate exactly once to be expanded.
-		if is_atom(fn) and fn in env and env[fn][0] == "macro":
-			macro_def = env[fn]
-			expanded = macroexpand([macro_def] + args)
-			return eval(expanded, env)
-
 		if is_atom(fn):
-			# Treat atoms as function names. Handle the minimal inbuilt functions needed to interpret LISP in LISP.
+			# In Lisp we always treat the first atom in a list as a function name.
+
 			match fn:				
 				case "quote":
 					return args[0]
 				case "backquote":
 					# Return a list of quoted items. If there is a comma, then evaluate it instead.
-					# @todo use @ to splice values into the list
-					return quasiquote(args[0], env)
+					items, _ = quasiquote(args[0], env)
+					return items
 				case "atom":
 					return "t" if is_atom(eval(args[0], env)) else "f"
 				case "eq":
@@ -207,11 +217,18 @@ def eval(node, env):
 					print(unparse(value))
 					return value
 				case _:
-					# Must be a labelled function if it is not inbuilt.
+					# Must be a labelled function or macro if it is not inbuilt.
 					try:
 						function = env[fn]
 					except KeyError:
 						raise ValueError(f"Labelled function '{node}' not found. Available: {list(env.keys())}")
+					
+					# We need to handle macros as the first preprocessing step.
+					# It must evaluate exactly once to be expanded.
+					if function[0] == "macro":
+						expanded = macroexpand([function] + args)
+						return eval(expanded, env)
+
 					return eval([function] + args, env)
 		else:
 			# Not an atom - this means it has a special meaning
@@ -412,6 +429,7 @@ if __name__ == '__main__':
 	print(interpret("""
 				 (if (eq 'foo 'flob) 'im_true (cdr '('foo 'bar)))""", env))
 	
+	print(interpret("""`(foo bar ,(cdr '('apple 'banana 'carrot)) ,@(cons 'a '('b 'c)))""", env))
 
 	print(interpret("""`(foo bar ,(cdr '('apple 'banana 'carrot)))""", env))
 
@@ -451,5 +469,10 @@ if __name__ == '__main__':
 	(bar) 
 	(foo)
 	(bar)
+	(make-functions doo daa)
+	(foo)
+	(bar)
+	(doo)
+	(daa)
 )"""
-	print(interpret(auto_functions, env)) # We have many side effects because of the progn and print, so it prints multiple times.
+	print(interpret(auto_functions, env)) # We have many side effects because of the progn and print, so it prints again at the end.
