@@ -9,25 +9,25 @@
 # Macros were not in the original paper, but they are a fundamental Lisp concept which
 # addresses some of the inflexibility of the standard apply / eval loop. 
 #
-# Instead of macro parameters being evaluated as part of the apply step (ie applicative order evaluation), 
+# Instead of macro parameters being evaluated as part of the apply step (i.e. applicative order evaluation), 
 # they are substituted into the macro, and then the "patched" macro is evaluated.
 #
-# In Common Lisp, the macro is defined as a data list, not a function. It is normally passed as 
-# a backquoted list, and selectively evaluated with the comma and @.
-# However, we currently do it in a more old-school using FEXPRs. This is fine, since we are not compiling the code.
+# Previous commits of this interpreter used an old-school FEXPR macro system (i.e. you write macros like 
+# normal functions, and substituting the parameters requires its own weird function). But because I already wrote 
+# the quasiquote language feature, Common Lisp style macros (defined as a quoted list, not a function) 
+# effectively come with it "for free". It's a very elegant synergy.
 #
-# For debugging, there is a macroexpand function, which will run the substitution over the given expression.
-# 
-# We also add backquote ` and comma , which allows us to selectively evaluate parts of a quoted list.
+# For debugging, there is a macroexpand function, which will run the expansion without evaluating it.
 #
-# Note that we do not handle arbitrary parameter lengths.
+# Note that this iteration of macros does not handle arbitrary numbers of parameters. But you can pass 
+# lists and splice them using the ,@ token.
 
 import re
 from typing import Any
 
 def lex(input):
 	""" Tokenize the input string. """
-	return re.findall(r"[()'`]|[^() \n\t']+", input)
+	return re.findall(r",@|[()'`,]|[^\s()'`,]+", input)
 
 
 def parse(tokens):
@@ -45,10 +45,10 @@ def parse(tokens):
 		return ['quote', parse(tokens)]
 	elif token == "`":
 		return ['backquote', parse(tokens)]
-	elif token == ",":
-		return ['comma', parse(tokens)]
 	elif token == ",@":
 		return ['commaat', parse(tokens)]
+	elif token == ",":
+		return ['comma', parse(tokens)]
 	else:
 		return token
 
@@ -106,30 +106,22 @@ def defmacro(args, env):
 	return None
 
 
-def _substitute(node, substitutions):
-	""" Recursively do a naive subsitution of the values in substitutions into the AST.
-	Basically a search/replace over the AST with our substitutions.
-	 We do not want to evaluate anything - just create a new program to be evaluated. """
-	if is_atom(node):
-		return substitutions.get(node, node)
-	return [_substitute(x, substitutions) for x in node]
-	
-
-def macroexpand(node):
-	""" Expand a macro. """
-	# We rely on the standard labelled function functionality in eval() to
-	# fetch the macro from the environment into the node.
-	# Then we pull apart the node into the various parts.
+def macroexpand(node, env):
+	""" Expand a macro. When we have quasiquote in our language, then we can
+		implement Common Lisp style macros. These are trivial to expand.
+		We simply evaluate the macro, which automatically 
+		strips out the quotes and applies the parameters. We end up with
+		Lisp code, ready to be evaled. """
 	macro_def = node[0]     
 	params = macro_def[1]
 	body = macro_def[2]
 	user_args = node[1:]
 
-	# Unlike apply, we do not immediately evaluate the user arguments.
-	# We substitute them into the macro, then evaluate after.
 	substitutions = dict(zip(params, user_args))
 
-	return _substitute(body, substitutions)
+	expanded_macro = eval(body, substitutions)
+
+	return expanded_macro
 
 
 def quasiquote(node, env) -> tuple[Any, bool]:
@@ -211,7 +203,7 @@ def eval(node, env):
 					expression = eval(macro_in, env)
 					macro_def = env[expression[0]] # fetch the macro from the environment.
 					internal_node = [macro_def] + expression[1:] # do not mutate the expression list.
-					return macroexpand(internal_node)
+					return macroexpand(internal_node, env)
 				case "print":
 					value = eval(args[0], env)
 					print(unparse(value))
@@ -223,10 +215,9 @@ def eval(node, env):
 					except KeyError:
 						raise ValueError(f"Labelled function '{node}' not found. Available: {list(env.keys())}")
 					
-					# We need to handle macros as the first preprocessing step.
-					# It must evaluate exactly once to be expanded.
 					if function[0] == "macro":
-						expanded = macroexpand([function] + args)
+						# If this was a macro, then expand it and eval it.
+						expanded = macroexpand([function] + args, env)
 						return eval(expanded, env)
 
 					return eval([function] + args, env)
@@ -246,7 +237,7 @@ def eval(node, env):
 		try:
 			return env[node] # Lookup the value of the variable in our environment.
 		except KeyError:
-			raise ValueError(f"Variable '{node}' not found. Available: {env.keys()}")
+			raise ValueError(f"{node}: Variable '{node}' not found. Available: {env.keys()}")
 	else:
 		raise ValueError(f"invalid node: {node}")
 
@@ -388,19 +379,19 @@ if __name__ == '__main__':
 	
 	# Add some useful macros.
 	# For a proper if, we need to selectively evaluate the parameters. This would be impossible with a
-	# function, but easy with a macro.
+	# function, because the parameters would be immediately evaluated, but easy with a macro.
 	interpret("""
 (progn
 	(defmacro if (predicate value alternative)
-		(cond
-			(predicate value)
-			('t alternative)
+		`(cond
+			(,predicate ,value)
+			('t ,alternative)
 		)
 	)
 		   
 	(defmacro unless (predicate value)
-    	(cond
-      		((not predicate) value)
+    	`(cond
+      		((not ,predicate) ,value)
       		('t 'f)))
 )""", env)
 
@@ -434,17 +425,17 @@ if __name__ == '__main__':
 	print(interpret("""`(foo bar ,(cdr '('apple 'banana 'carrot)))""", env))
 
 
-	# Do something x times, using unary encoding
+	# Do something x+1 times, using unary encoding
 	times_test = """
 (progn
 	(defmacro times (thing num)
-	(
+	`(
 		   (label do-it (lambda (count) 
 				 (progn
-					thing
+					,thing
                    	(cond ((atom count) 't)
                          ('t (do-it (cdr count)))))))
-			num)
+			,num)
 			)
 	 
 	(times 
@@ -458,9 +449,9 @@ if __name__ == '__main__':
 	auto_functions = """
 (progn
 	(defmacro make-functions (name name2)
-	(progn
-			(defun name () (print '(Hi there from name)))
-			(defun name2 () (print '(Hi there from name2)))
+	`(progn
+			(defun ,name () (print '(Hi there from ,name)))
+			(defun ,name2 () (print '(Hi there from ,name2)))
 		)
 	)
 	 
