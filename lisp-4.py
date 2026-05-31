@@ -300,6 +300,8 @@ if __name__ == '__main__':
 	repl(env)
 
 	print(interpret("(reverse '(h e l l o 1 2 3 4 5))", env))
+
+	# eval the first parameter, passing in a and b as environment
 	print(interpret("(eval '(cons x '(b c)) '((x a) (y b)))", env))
 	
 	print(interpret("""

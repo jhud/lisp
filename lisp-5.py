@@ -270,7 +270,8 @@ if __name__ == '__main__':
 
 	env = dict()
 
-	# Add the remaining functions needed to implement LISP eval and add it
+	# Add the remaining functions needed to implement LISP eval and add it.
+	# This meta-interpreter is very basic: it does not contain our macro system.
 	interpret("""
 		   (progn 
 			(defun caar (lst) (car (car lst)))
@@ -306,13 +307,13 @@ if __name__ == '__main__':
 												(eval (caddr exp) env)))
 				((eq (car exp) 'cond)  (evcon (cdr exp) env))
 				('t (eval (cons (assoc (car exp) env)
-									(cdr exp))
+								(cdr exp))
 							env))))
 				((eq (caar exp) 'label)
 				(eval (cons (caddar exp) (cdr exp))
 						(cons (pair (cadar exp) (car exp)) env)))
 				((eq (caar exp) 'lambda)
-				(eval (caddar exp)
+					(eval (caddar exp)
 						(append (zip (cadar exp) (evlis (cdr exp) env))
 								env)))))
 
@@ -467,3 +468,7 @@ if __name__ == '__main__':
 	(daa)
 )"""
 	print(interpret(auto_functions, env)) # We have many side effects because of the progn and print, so it prints again at the end.
+
+	# eval using quasiquotes: the meta-interpreter evaluates a list which was partially evaluated using the comma.
+	print(interpret("(eval `(cons x '(,(cadr '(unused b)) c)) '((x a) (y unused)))", env))
+
